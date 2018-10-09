@@ -92,7 +92,6 @@ class Play():
         e_sum_speed = 0
         e_sum_lat = 0
 
-        # while not rospy.is_shutdown():
         
         if self.action==[1,0,0,0,0,0,0,0,0,0]:
             cmd_speed = 10
@@ -230,59 +229,84 @@ class Play():
 
 class Reward:
 
-	def __init__(self,action):
+    def __init__(self,action):
 
-		self.play = Play(action)
-		self.bridge = CvBridge()
-		self.loc = rospy.Subscriber("/localization_data", localization, self.loc_callback)
-		self.top_view = rospy.Subscriber("/vector_map_image", Image, self.image_callback)
-		self.v_need = 5
-
-
-	def loc_callback(self,data):
-		
-		self.play.cmd_publisher()
-		data = data
-		self.left_d = data.left_d
-		self.right_d = data.right_d
-		self.angle = data.angle
+        print time.time(),"act start"
+        self.play = Play(action)
+        print time.time(), "act ends"
+        self.bridge = CvBridge()
+        self.loc = rospy.Subscriber("/localization_data", localization, self.loc_callback)
+        self.top_view = rospy.Subscriber("/vector_map_image", Image, self.image_callback)
 
 
-	def image_callback(self,image):
-	    
-	    try:
-	        state_input = self.bridge.imgmsg_to_cv2(image, "bgr8")
-	        state_input = cv2.cvtColor(state_input, cv2.COLOR_BGR2GRAY)
-	        self.state_input = cv2.resize(state_input, (150,200))
-	        cv2.imshow("image",self.state_input)
-	        cv2.waitKey(150)
-	        self.reward_func()
-	        # cv2.destroyAllWindows()
-	    except CvBridgeError as e:
-	        print(e)
-	        last_time = time.time()
+    def loc_callback(self,data):
 
-	def reward_func(self):
-		left = self.left_d
-		right = self.right_d
-		ang = self.angle
-		nS = self.v_need
-
-		a = 2.5-left
-		b = 7.5-right
-		c = ang 
-
-		if (-0.2 < a < 0.2):
-			r1 = 5
-			print "r1",r1,a
-		elif (-2.5< a <= -0.2) or (0.2 <=a< 2):
-			r1 = -2*a
-			print "r1",r1,a
-		else:
-			r1 = -20
-			print "r1",r1,a
+        self.play.cmd_publisher()
+        data = data
+        self.left_d = data.left_d
+        self.right_d = data.right_d
+        self.angle = data.angle
+        self.v_act = data.velocity.linear.x
 
 
+    def image_callback(self,image):
+
+        try:
+            print time.time(),"image taken"
+            state_input = self.bridge.imgmsg_to_cv2(image, "bgr8")
+            state_input = cv2.cvtColor(state_input, cv2.COLOR_BGR2GRAY)
+            self.state_input = cv2.resize(state_input, (150,200))
+            cv2.imshow("image",self.state_input)
+            cv2.waitKey(50)
+            self.returns()
+            print time.time(), "image returned"
+            # cv2.destroyAllWindows()
+        except CvBridgeError as e:
+            print(e)
+            last_time = time.time()
+
+
+    def reward_func(self):
+        left = self.left_d
+        right = self.right_d
+        ang = self.angle
+
+        a = 2.5-left
+        b = 7.5-right
+        c = ang 
+
+        if (-0.2 < a < 0.2):
+            r1 = 5
+        elif (-3< a <= -0.2):
+            r1 = 2*a
+        elif (0.2 <=a< 2.5):
+            r1 = -2*a
+        else:
+            r1 = -20
+
+        nS = self.v_act - 5.56
+
+        if (-2< nS < 2):
+            r2=5
+
+        elif (-5< nS <=-2):
+            r2=2*nS
+
+        elif (2 <= nS <5):
+            r2=-2*nS
+
+        else:
+            r2=-25
+
+        reward = r2+r2
+
+        return reward
+
+    def returns(self):
+        state = self.state_input
+        reward = self.reward_func()
+        returns = [state,reward]
+        # print returns
 
 
 class Game:
@@ -296,7 +320,6 @@ class Game:
         self.angular_velocity = [0,0,0]
         self.odom = rospy.Subscriber("/gazebo/model_states", ModelStates, self.odom_callback)
         self.cmd_vel = rospy.Subscriber("/vehicle/cmd_vel", Twist, self.vel_callback )
-
 
 
     def vel_callback(self,data):
@@ -339,21 +362,19 @@ class Game:
         return ep
 
     def new_episode(self):
-        self.counter = 0
+        self.counter = 10000
 
 
     def respawn(self):
 
-        self.counter=0
+        self.counter=10000
         
         while not rospy.is_shutdown():
             self.spawn_publisher = rospy.Publisher("/gazebo/set_model_state", ModelState, queue_size=1)
             self.counter+=1
             rospy.sleep(0.0002)
             # print self.is_episode_finished()
-            # print self.linear_velocity,self.counter
-            # print self.angular_velocity
-            # print counter
+            # print self.counter
 
             if self.counter<20000:
 
@@ -375,7 +396,7 @@ class Game:
                 twistaz = self.angular_velocity[2]
 
             if self.counter>20000:
-                if 20000<=self.counter<24000:
+                if 20000<=self.counter<20200:
 
                     posex = self.odom_data[0][0]
                     posey = self.odom_data[0][1]
@@ -393,10 +414,11 @@ class Game:
                     twistax = self.twist_data[1][0]
                     twistay = self.twist_data[1][1]
                     twistaz = self.twist_data[1][2]
+                    # self.new_episode()
 
                     # print self.state
                     
-                elif 24000<=self.counter<25500:
+                elif 20200<=self.counter<20500:
 
                     posex = 44.2
                     posey = -100
@@ -417,7 +439,7 @@ class Game:
                     
                     # rospy.loginfo("########### Respawning the car... ###########")
                     
-                if self.counter >= 25500:
+                if self.counter >= 20500:
                     # self.counter = 0
                     self.new_episode()
 
