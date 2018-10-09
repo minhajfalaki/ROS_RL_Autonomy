@@ -19,8 +19,8 @@ from std_msgs.msg import Empty
 
 class Play():
 
-    def __init__(self,action):
-        self.action = action
+    def __init__(self):
+        # self.action = action
         self.posex=0.0
         self.posey=0.0
         self.posez=0.0
@@ -73,7 +73,7 @@ class Play():
         # print self.speed
 
 
-    def cmd_publisher(self):
+    def cmd_publisher(self,action):
         kp_steer = 1
         ki_steer = 1
         kd_steer = 1
@@ -93,12 +93,12 @@ class Play():
         e_sum_lat = 0
 
         
-        if self.action==[1,0,0,0,0,0,0,0,0,0]:
-            cmd_speed = 10
+        if action==[1,0,0,0,0,0,0,0,0,0]:
+            cmd_speed = 2
             e_speed = 0
             cmd_y = 0.5
         
-        elif self.action==[0,1,0,0,0,0,0,0,0,0]:
+        elif action==[0,1,0,0,0,0,0,0,0,0]:
             cmd_speed = 5
             e_speed = 0
             cmd_y = 0.0
@@ -231,9 +231,9 @@ class Reward:
 
     def __init__(self,action):
 
-        print time.time(),"act start"
-        self.play = Play(action)
-        print time.time(), "act ends"
+        self.play = Play()
+        self.ll = 0
+        self.action = action
         self.bridge = CvBridge()
         self.loc = rospy.Subscriber("/localization_data", localization, self.loc_callback)
         self.top_view = rospy.Subscriber("/vector_map_image", Image, self.image_callback)
@@ -241,7 +241,10 @@ class Reward:
 
     def loc_callback(self,data):
 
-        self.play.cmd_publisher()
+        print time.time(),"act start",self.ll
+        time.sleep(0.2)
+        self.play.cmd_publisher(self.action)
+        print time.time(), "act ends",self.ll
         data = data
         self.left_d = data.left_d
         self.right_d = data.right_d
@@ -252,18 +255,21 @@ class Reward:
     def image_callback(self,image):
 
         try:
-            print time.time(),"image taken"
+            time.sleep(0.2)
+            print time.time(),"image taken",self.ll
             state_input = self.bridge.imgmsg_to_cv2(image, "bgr8")
             state_input = cv2.cvtColor(state_input, cv2.COLOR_BGR2GRAY)
             self.state_input = cv2.resize(state_input, (150,200))
             cv2.imshow("image",self.state_input)
             cv2.waitKey(50)
             self.returns()
-            print time.time(), "image returned"
+            print time.time(), "image returned",self.ll
+            self.ll+=1
             # cv2.destroyAllWindows()
         except CvBridgeError as e:
             print(e)
             last_time = time.time()
+
 
 
     def reward_func(self):
@@ -464,19 +470,5 @@ class Game:
                 self.spawn_publisher.publish(states)
 
 
-def main(args):
-    rospy.init_node('Game', anonymous=True)
-    game = Game()
-    returns = Reward([0,1,0,0,0,0,0,0,0,0])
-    # returns.reward_func()
-    try:         
-        game.respawn()
-    except KeyboardInterrupt:
-        print("Shutting down")
-    cv2.destroyAllWindows()
-
-
-if __name__ == '__main__':
-    main(sys.argv)
 
 
