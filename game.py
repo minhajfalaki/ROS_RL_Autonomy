@@ -13,6 +13,7 @@ from dbw_mkz_msgs.msg import SteeringCmd
 from dbw_mkz_msgs.msg import GearCmd, Gear
 from dbw_mkz_msgs.msg import SteeringReport, BrakeReport, ThrottleReport
 from sensor_msgs.msg import PointCloud2, PointField, Image
+from sample_vector_data.msg import localization
 from std_msgs.msg import Empty
 
 
@@ -82,7 +83,7 @@ class Play():
         kp_brake = -0.05
         ki_brake = -0
         kd_brake = -0
-        rate = rospy.Rate(5)
+        # rate = rospy.Rate(5)
         cmd_speed = 10
         cmd_y = 0
         prev_t = 1
@@ -94,12 +95,12 @@ class Play():
         # while not rospy.is_shutdown():
         
         if self.action==[1,0,0,0,0,0,0,0,0,0]:
-            cmd_speed = 1.5
+            cmd_speed = 10
             e_speed = 0
             cmd_y = 0.5
         
         elif self.action==[0,1,0,0,0,0,0,0,0,0]:
-            cmd_speed = 0.75
+            cmd_speed = 5
             e_speed = 0
             cmd_y = 0.0
         
@@ -158,7 +159,7 @@ class Play():
         #   cmd_y = 0.5
 
 
-        rospy.loginfo("########### Starting CarControl Cmd Publish Round... ###########")
+        # rospy.loginfo("########### Starting CarControl Cmd Publish Round... ###########")
         e_speed = cmd_speed - self.speed
         gear = 4
         cur_t = rospy.get_time()
@@ -194,7 +195,7 @@ class Play():
         # self.gear_cmd_publisher(gear_value=gear)
         self.throttle_cmd_publisher(throttle_value=throttle)
         self.i+=1
-        rate.sleep()
+        # rate.sleep()
 
     def throttle_cmd_publisher(self, throttle_value=0.0):
         throttle_command_object = ThrottleCmd()
@@ -226,36 +227,80 @@ class Play():
         steering_command_object.quiet = False
         self.pub_steering_cmd.publish(steering_command_object)
 
+
+class Reward:
+
+	def __init__(self,action):
+
+		self.play = Play(action)
+		self.bridge = CvBridge()
+		self.loc = rospy.Subscriber("/localization_data", localization, self.loc_callback)
+		self.top_view = rospy.Subscriber("/vector_map_image", Image, self.image_callback)
+		self.v_need = 5
+
+
+	def loc_callback(self,data):
+		
+		self.play.cmd_publisher()
+		data = data
+		self.left_d = data.left_d
+		self.right_d = data.right_d
+		self.angle = data.angle
+
+
+	def image_callback(self,image):
+	    
+	    try:
+	        state_input = self.bridge.imgmsg_to_cv2(image, "bgr8")
+	        state_input = cv2.cvtColor(state_input, cv2.COLOR_BGR2GRAY)
+	        self.state_input = cv2.resize(state_input, (150,200))
+	        cv2.imshow("image",self.state_input)
+	        cv2.waitKey(150)
+	        self.reward_func()
+	        # cv2.destroyAllWindows()
+	    except CvBridgeError as e:
+	        print(e)
+	        last_time = time.time()
+
+	def reward_func(self):
+		left = self.left_d
+		right = self.right_d
+		ang = self.angle
+		nS = self.v_need
+
+		a = 2.5-left
+		b = 7.5-right
+		c = ang 
+
+		if (-0.2 < a < 0.2):
+			r1 = 5
+			print "r1",r1,a
+		elif (-2.5< a <= -0.2) or (0.2 <=a< 2):
+			r1 = -2*a
+			print "r1",r1,a
+		else:
+			r1 = -20
+			print "r1",r1,a
+
+
+
+
+
+
+
 class Game:
 
-    def __init__(self,action):
+    def __init__(self):
 
-        self.play = Play(action)
         # self.play = Play([1,0,0,0,0,0,0,0,0,0])
         self.odom_data = [[0,0,0],[0,0,0,0]]
         self.twist_data = [[0,0,0],[0,0,0]]
         self.linear_velocity = [0,0,0]
         self.angular_velocity = [0,0,0]
-        self.bridge = CvBridge()
-        self.top_view = rospy.Subscriber("/vector_map_image", Image, self.image_callback)
         self.odom = rospy.Subscriber("/gazebo/model_states", ModelStates, self.odom_callback)
         self.cmd_vel = rospy.Subscriber("/vehicle/cmd_vel", Twist, self.vel_callback )
 
 
-    def image_callback(self,image):
-        
-        try:
-            state_input = self.bridge.imgmsg_to_cv2(image, "bgr8")
-            print state_input.shape
-            state_input = cv2.cvtColor(state_input, cv2.COLOR_BGR2GRAY)
-            state_input = cv2.resize(state_input, (150,200))
-            cv2.imshow("image",state_input)
-            cv2.waitKey(150)
-            # cv2.destroyAllWindows()
-            self.play.cmd_publisher()
-        except CvBridgeError as e:
-            print(e)
-            last_time = time.time()
 
     def vel_callback(self,data):
 
@@ -401,8 +446,10 @@ class Game:
 
 
 def main(args):
-    game = Game()
     rospy.init_node('Game', anonymous=True)
+    game = Game()
+    returns = Reward([0,1,0,0,0,0,0,0,0,0])
+    # returns.reward_func()
     try:         
         game.respawn()
     except KeyboardInterrupt:
