@@ -258,7 +258,6 @@ class Worker():
                     sess.run(self.increment)
                 episode_count += 1
                 # print "rewards",self.episode_rewards,"length", self.episode_lengths,"mean", self.episode_mean_values
-                # print self.increment,episode_count,self.global_episodes
 
 
 
