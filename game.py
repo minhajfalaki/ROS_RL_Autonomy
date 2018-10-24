@@ -20,14 +20,16 @@ from std_msgs.msg import Empty
 class Play():
 
     def __init__(self,vehicle_name):
-		self.posex=0.0
-		self.posey=0.0
-		self.posez=0.0
-		self.speed=0.0
-		self.pub_steering_cmd = rospy.Publisher('/%s/steering_cmd'%(vehicle_name), SteeringCmd, queue_size=1)
-		self.pub_velocity_cmd = rospy.Publisher('/%s/cmd_velocity'%(vehicle_name), Twist, queue_size=1)
+        self.posex=0.0
+        self.posey=0.0
+        self.posez=0.0
+        self.speed=0.0
+        # print "initialized play at ", time.time()
+        self.pub_steering_cmd = rospy.Publisher('/%s/steering_cmd'%(vehicle_name), SteeringCmd, queue_size=1)
+        self.pub_velocity_cmd = rospy.Publisher('/%s/cmd_velocity'%(vehicle_name), Twist, queue_size=1)
 
     def steer_callback(self,data):
+        # print "steer callback ",time.time()
         self.steering_wheel_angle = data.steering_wheel_angle
         self.steering_wheel_angle_cmd = data.steering_wheel_angle_cmd
         self.speed = data.speed
@@ -51,17 +53,19 @@ class Play():
         e_sum_speed = 0
         e_sum_lat = 0
 
-        
+
         if action==[1,0,0,0,0,0,0,0,0,0]:
             throttle = 5
             e_speed = 0
             cmd_y = 0.5
-        
+
         elif action==[0,1,0,0,0,0,0,0,0,0]:
             throttle = 0
             e_speed = 0
             cmd_y = 0.0
-        
+
+        # print "drive cmd pub at ", time.time()
+
         cur_t = rospy.get_time()
         delta_t = cur_t-prev_t
         prev_t = cur_t
@@ -83,6 +87,7 @@ class Play():
     def throttle_cmd_publisher(self, throttle_value=0.0):
         throttle_command_object = Twist()
         throttle_command_object.linear.x = throttle_value
+        # print "6p"
         self.pub_velocity_cmd.publish(throttle_command_object)
 
 
@@ -93,6 +98,7 @@ class Play():
         steering_command_object.enable = True
         steering_command_object.ignore = False
         steering_command_object.quiet = False
+        # print "7p"
         self.pub_steering_cmd.publish(steering_command_object)
 
 
@@ -100,7 +106,7 @@ class Reward:
 
     def __init__(self,vehicle_name,action,spawn,l):
 
-        self.r = rospy.Rate(5)
+        self.r = rospy.Rate(2)
         self.play = Play(vehicle_name)
         self.action = action
         self.game = Game(vehicle_name,False)
@@ -108,8 +114,9 @@ class Reward:
         self.vehicle_name = vehicle_name
         self.l=l
         self.bridge = CvBridge()
+        print "initialized Reward at",time.time()
+        self.top_view = rospy.Subscriber("%s/vector_map_image"%(self.vehicle_name), Image, self.image_callback)
         self.loc = rospy.Subscriber("%s/localization_data"%(vehicle_name), localization, self.loc_callback)
-        self.top_view = rospy.Subscriber("%s/vector_map_image"%(vehicle_name), Image, self.image_callback)
 
 
     def loc_callback(self,data):
@@ -119,28 +126,27 @@ class Reward:
         self.right_d = data.right_d
         self.angle = data.angle
         self.v_act = data.velocity.linear.x
+        # print "loc_callback at", time.time()
         self.play.cmd_publisher(self.action)
         self.game.respawn(self.spawn)
-        self.r.sleep()
+        # self.r.sleep()
 
 
     def image_callback(self,image):
 
-        # print time.time(),"image taken"
+        seq=image.header.seq
         state_input = self.bridge.imgmsg_to_cv2(image, "bgr8")
         state_input = cv2.cvtColor(state_input, cv2.COLOR_BGR2GRAY)
         self.state_input = cv2.resize(state_input, (150,200))
+        self.l+=1
         cv2.imwrite("img_%s/%s.jpg"%(self.vehicle_name,self.l), self.state_input)
-        # cv2.imshow("image",self.state_input)
-        # cv2.waitKey(150)
-        self.r.sleep()
-        print time.time(), "image returned", "iteration", self.l, self.vehicle_name 
 
 
     def reward_func(self):
         left = self.left_d
         right = self.right_d
         ang = self.angle
+        print "making rewards at",time.time()
 
         a = 2.5-left
         b = 7.5-right
@@ -158,7 +164,7 @@ class Reward:
         nS = self.v_act - 5.56
 
         if (-2< nS < 2):
-            r2=5
+            r2=5  
 
         elif (-5< nS <=-2):
             r2=2*nS
@@ -174,10 +180,14 @@ class Reward:
         return reward
 
     def returns(self):
+        print "returns at",time.time()
         state = self.state_input
         reward = self.reward_func()
         returns = [state,reward]
         return returns
+        # try:
+        # except:
+        #     pass
         # print returns
 
 
@@ -188,6 +198,7 @@ class Game:
         # self.play = Play([1,0,0,0,0,0,0,0,0,0])
         self.r = rospy.Rate(5)
         self.spawn=spawn
+        print "initialized game",time.time()
         self.odom_data = [[0,0,0],[0,0,0,0]]
         self.twist_data = [[0,0,0],[0,0,0]]
         self.linear_velocity = [0,0,0]
@@ -206,6 +217,7 @@ class Game:
 
 
     def vel_callback(self,data):
+        # print "vel_callback at",time.time()
 
         self.linear_velocity[0] = data.linear.x
         self.linear_velocity[1] = data.linear.y
@@ -214,28 +226,29 @@ class Game:
         self.angular_velocity[0] = data.angular.x
         self.angular_velocity[1] = data.angular.y
         self.angular_velocity[2] = data.angular.z
-        self.r.sleep()
+        # self.r.sleep()
 
 
     def odom_callback(self,data):
+        # print "3g"
 
         self.odom_data[0][0] = data.pose[self.nn].position.x
         self.odom_data[0][1] = data.pose[self.nn].position.y
         self.odom_data[0][2] = data.pose[self.nn].position.z
-        
+
         self.odom_data[1][0] = data.pose[self.nn].orientation.x
         self.odom_data[1][1] = data.pose[self.nn].orientation.y
         self.odom_data[1][2] = data.pose[self.nn].orientation.z
         self.odom_data[1][3] = data.pose[self.nn].orientation.w
-        
+
         self.twist_data[0][0] = data.twist[self.nn].linear.x
         self.twist_data[0][1] = data.twist[self.nn].linear.y
         self.twist_data[0][2] = data.twist[self.nn].linear.z
-        
+
         self.twist_data[1][0] = data.twist[self.nn].angular.x
         self.twist_data[1][1] = data.twist[self.nn].angular.y
         self.twist_data[1][2] = data.twist[self.nn].angular.z
-        self.r.sleep
+        # self.r.sleep
 
     def is_episode_finished(self):
 
@@ -254,127 +267,130 @@ class Game:
 
 
 
-		if self.spawn == True or spawning == True:
-			self.counter=20000
-			self.counter+=1
+        if self.spawn == True or spawning == True:
+        	self.counter=20000
+        	self.counter+=1
 
-		else:
-			self.counter = 0
+        else:
+        	self.counter = 0
 
-		# while not rospy.is_shutdown():
-		self.spawn_publisher = rospy.Publisher("/gazebo/set_model_state", ModelState, queue_size=1)
-		# self.counter+=1
-		# print self.is_episode_finished()
-		# print self.counter
+        # print "respawn start at ",time.time()
 
-		if self.vehicle_name == "fusion":
-			xx = 55.2
-			yy = -100
-			zz = 0.3
+        # while not rospy.is_shutdown():
+        self.spawn_publisher = rospy.Publisher("/gazebo/set_model_state", ModelState, queue_size=1)
+        # self.counter+=1
+        # print self.is_episode_finished()
+        # print self.counter
 
-		else:
-			xx = 44.2
-			yy = -100
-			zz = 0.3        	
-		# xx = 44.2
-		# yy = -100
-		# zz = 0.3
+        if self.vehicle_name == "fusion":
+        	xx = 55.2
+        	yy = -100
+        	zz = 0.3
 
-		if self.counter==0:
+        else:
+        	xx = 44.2
+        	yy = -100
+        	zz = 0.3        	
+        # xx = 44.2
+        # yy = -100
+        # zz = 0.3
 
-		    posex = self.odom_data[0][0]
-		    posey = self.odom_data[0][1]
-		    posez = self.odom_data[0][2]
-		    
-		    poseox = self.odom_data[1][0]
-		    poseoy = self.odom_data[1][1]
-		    poseoz = self.odom_data[1][2]
-		    poseow = self.odom_data[1][3]
+        if self.counter==0:
 
-		    twistx = self.linear_velocity[0]
-		    twisty = self.linear_velocity[1]
-		    twistz = self.linear_velocity[2]
-		    
-		    twistax = self.angular_velocity[0]
-		    twistay = self.angular_velocity[1]
-		    twistaz = self.angular_velocity[2]
+            posex = self.odom_data[0][0]
+            posey = self.odom_data[0][1]
+            posez = self.odom_data[0][2]
+            
+            poseox = self.odom_data[1][0]
+            poseoy = self.odom_data[1][1]
+            poseoz = self.odom_data[1][2]
+            poseow = self.odom_data[1][3]
 
-		    return
+            twistx = self.linear_velocity[0]
+            twisty = self.linear_velocity[1]
+            twistz = self.linear_velocity[2]
+            
+            twistax = self.angular_velocity[0]
+            twistay = self.angular_velocity[1]
+            twistaz = self.angular_velocity[2]
 
-		while self.counter>20000:
+            return
 
-		    if 20000<=self.counter<20002:
+        while self.counter>20000:
 
-		        posex = self.odom_data[0][0]
-		        posey = self.odom_data[0][1]
-		        posez = self.odom_data[0][2]
-		        
-		        poseox = self.odom_data[1][0]
-		        poseoy = self.odom_data[1][1]
-		        poseoz = self.odom_data[1][2]
-		        poseow = self.odom_data[1][3]
-		        
-		        twistx = self.twist_data[0][0]
-		        twisty = self.twist_data[0][1]
-		        twistz = self.twist_data[0][2]
-		        
-		        twistax = self.twist_data[1][0]
-		        twistay = self.twist_data[1][1]
-		        twistaz = self.twist_data[1][2]
-		        # self.new_episode()
-		        self.counter+=1
-		        print self.counter,'in'
+            if 20000<=self.counter<20002:
 
-		        # print self.state
-		        
-		    elif 20002<=self.counter<20004:
+                posex = self.odom_data[0][0]
+                posey = self.odom_data[0][1]
+                posez = self.odom_data[0][2]
+                
+                poseox = self.odom_data[1][0]
+                poseoy = self.odom_data[1][1]
+                poseoz = self.odom_data[1][2]
+                poseow = self.odom_data[1][3]
+                
+                twistx = self.twist_data[0][0]
+                twisty = self.twist_data[0][1]
+                twistz = self.twist_data[0][2]
+                
+                twistax = self.twist_data[1][0]
+                twistay = self.twist_data[1][1]
+                twistaz = self.twist_data[1][2]
+                # self.new_episode()
+                self.counter+=1
+                # print self.counter,'in'
 
-		        posex = xx
-		        posey = yy
-		        posez = zz
-		        
-		        poseox = 0
-		        poseoy = 0
-		        poseoz = 0
-		        poseow = 1
-		        
-		        twistx = 0
-		        twisty = 0
-		        twistz = 0
-		        
-		        twistax = 0
-		        twistay = 0
-		        twistaz = 0
-		        self.counter+=1
-		        print self.counter,"inn"
-		        
-		        # rospy.loginfo("########### Respawning the car... ###########")
-		        
-		    if self.counter >= 20004:
-		        self.counter = 0
-		        # self.new_episode()
+                # print self.state
+                
+            elif 20002<=self.counter<20004:
 
-		    states = ModelState()
-		    print self.vehicle_name
-		    states.model_name = "%s"%(self.vehicle_name)
-		    states.twist.linear.x = twistx
-		    states.twist.linear.y = twisty
-		    states.twist.linear.z = twistz
+                posex = xx
+                posey = yy
+                posez = zz
+                
+                poseox = 0
+                poseoy = 0
+                poseoz = 0
+                poseow = 1
+                
+                twistx = 0
+                twisty = 0
+                twistz = 0
+                
+                twistax = 0
+                twistay = 0
+                twistaz = 0
+                self.counter+=1
+                # print self.counter,"inn"
+                
+                # rospy.loginfo("########### Respawning the car... ###########")
+                
+            if self.counter >= 20004:
+                self.counter = 0
+                # self.new_episode()
 
-		    states.twist.angular.x = twistax
-		    states.twist.angular.y = twistay
-		    states.twist.angular.z = twistaz
+            states = ModelState()
+            # print self.vehicle_name
+            states.model_name = "%s"%(self.vehicle_name)
+            states.twist.linear.x = twistx
+            states.twist.linear.y = twisty
+            states.twist.linear.z = twistz
 
-		    states.pose.position.x = posex 
-		    states.pose.position.y = posey
-		    states.pose.position.z = posez
+            states.twist.angular.x = twistax
+            states.twist.angular.y = twistay
+            states.twist.angular.z = twistaz
 
-		    states.pose.orientation.x = poseox
-		    states.pose.orientation.y = poseoy
-		    states.pose.orientation.z = poseoz
-		    states.pose.orientation.w = poseow
-		    self.spawn_publisher.publish(states)
-		    self.r.sleep()
+            states.pose.position.x = posex 
+            states.pose.position.y = posey
+            states.pose.position.z = posez
+
+            states.pose.orientation.x = poseox
+            states.pose.orientation.y = poseoy
+            states.pose.orientation.z = poseoz
+            states.pose.orientation.w = poseow
+            self.spawn_publisher.publish(states)
+            # print "respawn publishing"
+            # self.r.sleep()
 
 
 

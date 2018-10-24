@@ -1,23 +1,23 @@
-import rospy
-from gazebo_msgs.msg import ModelStates, ModelState
+import threading
 
-l=['ground_plane', '(DS) Straight Road - 200m_8', '(DS) Straight Road - 100m_0', '(DS) Curved Road - 100m_3', '(DS) Straight Road - 50m', '(DS) Curved Road - 100m_7', '(DS) Straight Road - 50m_2', '(DS) Curved Road - 50m_1', '(DS) Curved Road - 50m_2', '(DS) Curved Road - 50m_3', '(DS) Straight Road - 100m_5', '(DS) Curved Road - 50m_7', '(DS) Curved Road - 50m_8',
- '(DS) Curved Road - 50m_9', '(DS) Straight Road - 100m_6', '(DS) Curved Road - 100m_8', 
- '(DS) Curved Road - 100m_9', '(DS) Curved Road - 100m_10', '(DS) Curved Road - 100m_11',
-  '(DS) Straight Road - 200m_9', '(DS) Straight Road - 200m_11', '(DS) Curved Road - 50m_10',
-   '(DS) Curved Road - 50m_11', '(DS) Curved Road - 50m_12', 
-   '(DS) Curved Road - 50m_13', '(DS) Straight Road - 100m_7', '(DS) Straight Road - 100m_8',
-  'fusion', 'mkz']
+class SummingThread(threading.Thread):
+     def __init__(self,low,high):
+         super(SummingThread, self).__init__()
+         self.low=low
+         self.high=high
+         self.total=0
 
-
-# for i in range(len(l)):
-# 	print i,l[i]
-rospy.init_node('Game', anonymous=True)
-
-r = rospy.Rate(1) # 10hz
-while not rospy.is_shutdown():
-    print "sfg"
-    r.sleep()
+     def run(self):
+         for i in range(self.low,self.high):
+             self.total+=i
 
 
-
+thread1 = SummingThread(0,500000)
+thread2 = SummingThread(500000,1000000)
+thread1.start() # This actually causes the thread to run
+thread2.start()
+thread1.join()  # This waits until the thread has completed
+thread2.join()  
+# At this point, both threads have completed
+result = thread1.total + thread2.total
+print result
