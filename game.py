@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 from cv_bridge import CvBridge, CvBridgeError 
 from gazebo_msgs.msg import ModelStates, ModelState
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist,TwistStamped
 from dbw_mkz_msgs.msg import BrakeCmd
 from dbw_mkz_msgs.msg import ThrottleCmd
 from dbw_mkz_msgs.msg import SteeringCmd
@@ -20,102 +20,59 @@ from std_msgs.msg import Empty
 class Play():
 
     def __init__(self,vehicle_name):
-        self.posex=0.0
-        self.posey=0.0
-        self.posez=0.0
-        self.speed=0.0
-        # print "initialized play at ", time.time()
+
+        self.throttle_command_object = Twist()
+        self.steering_command_object = SteeringCmd()
         self.pub_steering_cmd = rospy.Publisher('/%s/steering_cmd'%(vehicle_name), SteeringCmd, queue_size=1)
         self.pub_velocity_cmd = rospy.Publisher('/%s/cmd_velocity'%(vehicle_name), Twist, queue_size=1)
 
     def steer_callback(self,data):
-        # print "steer callback ",time.time()
         self.steering_wheel_angle = data.steering_wheel_angle
         self.steering_wheel_angle_cmd = data.steering_wheel_angle_cmd
         self.speed = data.speed
 
     def cmd_publisher(self,action):
-        kp_steer = 1
-        ki_steer = 1
-        kd_steer = 1
-        kp_throt = 0.16
-        ki_throt = 0
-        kd_throt = 0
-        kp_brake = -0.05
-        ki_brake = -0
-        kd_brake = -0
-        # rate = rospy.Rate(5)
-        cmd_speed = 10
-        cmd_y = 0
-        prev_t = 1
-        e_speed_prev = 0
-        e_lat_prev = 0
-        e_sum_speed = 0
-        e_sum_lat = 0
-
 
         if action==[1,0,0,0,0,0,0,0,0,0]:
             throttle = 5
             e_speed = 0
-            cmd_y = 0.5
+            steer = 0.5
 
         elif action==[0,1,0,0,0,0,0,0,0,0]:
             throttle = 0
             e_speed = 0
-            cmd_y = 0.0
-
-        # print "drive cmd pub at ", time.time()
-
-        cur_t = rospy.get_time()
-        delta_t = cur_t-prev_t
-        prev_t = cur_t
-        e_lat = cmd_y-self.posey
-        e_delta_lat = e_lat-e_lat_prev
-        e_sum_lat += e_lat*delta_t
-        e_lat_prev = e_lat
-        steer = (kp_steer*e_lat)+ (kd_steer*e_delta_lat/delta_t) + (ki_steer*e_sum_lat)
+            steer = 0.0
 
         if(steer<-8.2):
             steer = -8.2
         elif(steer>8.2):
             steer = 8.2
-        steer = 0.0
 
         self.steering_cmd_publisher(angle_rad=steer)
         self.throttle_cmd_publisher(throttle_value=throttle)
 
     def throttle_cmd_publisher(self, throttle_value=0.0):
-        throttle_command_object = Twist()
-        throttle_command_object.linear.x = throttle_value
-        # print "6p"
-        self.pub_velocity_cmd.publish(throttle_command_object)
+        self.throttle_command_object.linear.x = throttle_value
+        self.pub_velocity_cmd.publish(self.throttle_command_object)
 
 
     def steering_cmd_publisher(self, angle_rad=0.0):
-        steering_command_object = SteeringCmd()
-        steering_command_object.steering_wheel_angle_cmd = angle_rad
-        steering_command_object.steering_wheel_angle_velocity = random.uniform(0.0, 8.7)
-        steering_command_object.enable = True
-        steering_command_object.ignore = False
-        steering_command_object.quiet = False
-        # print "7p"
-        self.pub_steering_cmd.publish(steering_command_object)
+        self.steering_command_object.steering_wheel_angle_cmd = angle_rad
+        self.steering_command_object.steering_wheel_angle_velocity = random.uniform(0.0, 8.7)
+        self.pub_steering_cmd.publish(self.steering_command_object)
 
 
 class Reward:
 
-    def __init__(self,vehicle_name,action,spawn,l):
+    def __init__(self,vehicle_name,spawn):
 
-        self.r = rospy.Rate(2)
+        self.r = rospy.Rate(30)
         self.play = Play(vehicle_name)
-        self.action = action
         self.game = Game(vehicle_name,False)
         self.spawn = spawn
         self.vehicle_name = vehicle_name
-        self.l=l
         self.bridge = CvBridge()
-        print "initialized Reward at",time.time()
-        self.top_view = rospy.Subscriber("%s/vector_map_image"%(self.vehicle_name), Image, self.image_callback)
+        
         self.loc = rospy.Subscriber("%s/localization_data"%(vehicle_name), localization, self.loc_callback)
 
 
@@ -126,27 +83,26 @@ class Reward:
         self.right_d = data.right_d
         self.angle = data.angle
         self.v_act = data.velocity.linear.x
-        # print "loc_callback at", time.time()
-        self.play.cmd_publisher(self.action)
         self.game.respawn(self.spawn)
-        # self.r.sleep()
-
 
     def image_callback(self,image):
-
-        seq=image.header.seq
-        state_input = self.bridge.imgmsg_to_cv2(image, "bgr8")
-        state_input = cv2.cvtColor(state_input, cv2.COLOR_BGR2GRAY)
-        self.state_input = cv2.resize(state_input, (150,200))
-        self.l+=1
-        cv2.imwrite("img_%s/%s.jpg"%(self.vehicle_name,self.l), self.state_input)
+        try:
+            self.seq=image.header.seq
+            self.image_time = time.time()
+            state_input = self.bridge.imgmsg_to_cv2(image, "bgr8")
+            state_input = cv2.cvtColor(state_input, cv2.COLOR_BGR2GRAY)
+            print "image no",self.seq,"made at",time.time(),"==="
+            self.state_input = cv2.resize(state_input, (150,200))
+        except CvBridgeError as e:
+            print(e)
+            last_time = time.time()
+        self.top_view.unregister()
 
 
     def reward_func(self):
         left = self.left_d
         right = self.right_d
         ang = self.angle
-        print "making rewards at",time.time()
 
         a = 2.5-left
         b = 7.5-right
@@ -179,58 +135,52 @@ class Reward:
 
         return reward
 
-    def returns(self):
-        print "returns at",time.time()
+    def returns(self,action,i):
+        self.play.cmd_publisher(action)
+        self.top_view = rospy.Subscriber("%s/vector_map_image"%(self.vehicle_name), Image, self.image_callback,  queue_size=1)
+        print "cmd given", time.time()
+        self.r.sleep()
+        self.r.sleep()
+        time.sleep(0.1)
+        self.ret_time = time.time()
         state = self.state_input
         reward = self.reward_func()
         returns = [state,reward]
         return returns
-        # try:
-        # except:
-        #     pass
-        # print returns
-
 
 class Game:
 
     def __init__(self,vehicle_name,spawn):
 
-        # self.play = Play([1,0,0,0,0,0,0,0,0,0])
-        self.r = rospy.Rate(5)
+        self.r = rospy.Rate(30)
         self.spawn=spawn
-        print "initialized game",time.time()
         self.odom_data = [[0,0,0],[0,0,0,0]]
         self.twist_data = [[0,0,0],[0,0,0]]
         self.linear_velocity = [0,0,0]
         self.angular_velocity = [0,0,0]
         self.vehicle_name = vehicle_name
         self.odom = rospy.Subscriber("/gazebo/model_states", ModelStates, self.odom_callback)
-        self.cmd_vel = rospy.Subscriber("/%s/cmd_vel"%(vehicle_name), Twist, self.vel_callback )
+        self.cmd_vel = rospy.Subscriber("/%s/twist"%(vehicle_name), TwistStamped, self.vel_callback )
         if vehicle_name == 'fusion':
-        	# print vehicle_name
         	v2 = "mkz"
         	self.nn=27
         else:
-        	# print vehicle_name
         	v2 = "fusion"
         	self.nn=28
 
 
     def vel_callback(self,data):
-        # print "vel_callback at",time.time()
 
-        self.linear_velocity[0] = data.linear.x
-        self.linear_velocity[1] = data.linear.y
-        self.linear_velocity[2] = data.linear.z
+        self.linear_velocity[0] = data.twist.linear.x
+        self.linear_velocity[1] = data.twist.linear.y
+        self.linear_velocity[2] = data.twist.linear.z
 
-        self.angular_velocity[0] = data.angular.x
-        self.angular_velocity[1] = data.angular.y
-        self.angular_velocity[2] = data.angular.z
-        # self.r.sleep()
+        self.angular_velocity[0] = data.twist.angular.x
+        self.angular_velocity[1] = data.twist.angular.y
+        self.angular_velocity[2] = data.twist.angular.z
 
 
     def odom_callback(self,data):
-        # print "3g"
 
         self.odom_data[0][0] = data.pose[self.nn].position.x
         self.odom_data[0][1] = data.pose[self.nn].position.y
@@ -274,13 +224,7 @@ class Game:
         else:
         	self.counter = 0
 
-        # print "respawn start at ",time.time()
-
-        # while not rospy.is_shutdown():
         self.spawn_publisher = rospy.Publisher("/gazebo/set_model_state", ModelState, queue_size=1)
-        # self.counter+=1
-        # print self.is_episode_finished()
-        # print self.counter
 
         if self.vehicle_name == "fusion":
         	xx = 55.2
@@ -291,9 +235,7 @@ class Game:
         	xx = 44.2
         	yy = -100
         	zz = 0.3        	
-        # xx = 44.2
-        # yy = -100
-        # zz = 0.3
+        states = ModelState()
 
         if self.counter==0:
 
@@ -336,11 +278,8 @@ class Game:
                 twistax = self.twist_data[1][0]
                 twistay = self.twist_data[1][1]
                 twistaz = self.twist_data[1][2]
-                # self.new_episode()
                 self.counter+=1
-                # print self.counter,'in'
-
-                # print self.state
+                time.sleep(0.2)
                 
             elif 20002<=self.counter<20004:
 
@@ -361,16 +300,11 @@ class Game:
                 twistay = 0
                 twistaz = 0
                 self.counter+=1
-                # print self.counter,"inn"
-                
-                # rospy.loginfo("########### Respawning the car... ###########")
+                time.sleep(0.2)
                 
             if self.counter >= 20004:
                 self.counter = 0
-                # self.new_episode()
 
-            states = ModelState()
-            # print self.vehicle_name
             states.model_name = "%s"%(self.vehicle_name)
             states.twist.linear.x = twistx
             states.twist.linear.y = twisty
@@ -389,8 +323,6 @@ class Game:
             states.pose.orientation.z = poseoz
             states.pose.orientation.w = poseow
             self.spawn_publisher.publish(states)
-            # print "respawn publishing"
-            # self.r.sleep()
 
 
 

@@ -16,22 +16,27 @@ class SummingThread(threading.Thread):
         self.i = i
 
 
+
     def run(self):
 		l=0
-		r = rospy.Rate(10)
-		# while not rospy.is_shutdown():
-		print "in rospy,at",time.time()
-		reward = Reward(self.vehicle_name,[1,0,0,0,0,0,0,0,0,0],True,l)
+		r = rospy.Rate(30)
+		reward = Reward(self.vehicle_name,False)
+		game = Game(self.vehicle_name,False)
 		r.sleep()
-		returns = reward.returns()
-		print returns,i
+		returns = reward.returns([1,0,0,0,0,0,0,0,0,0],i)
+		if self.i>=100:
+			game.respawn(True)
+			self.i=0
 
+		# print returns,i
 
-for i in range(1000):
+for n in range(10):
+	for i in range(130):
+		print i
 
-	thread1 = SummingThread("fusion",i)
-	thread2 = SummingThread("mkz",i)
-	thread1.start() # This actually causes the thread to run
-	thread2.start()
-	thread1.join()  # This waits until the thread has completed
-	thread2.join()  
+		thread1 = SummingThread("fusion",i)
+		thread2 = SummingThread("mkz",i)
+		thread1.start() # This actually causes the thread to run
+		thread2.start()
+		thread1.join()  # This waits until the thread has completed
+		thread2.join()  
