@@ -152,6 +152,7 @@ class Game:
 
     def __init__(self,vehicle_name,spawn):
 
+        rospy.init_node('Game', anonymous=True)
         self.r = rospy.Rate(30)
         self.spawn=spawn
         self.odom_data = [[0,0,0],[0,0,0,0]]
@@ -323,7 +324,7 @@ class Game:
             states.pose.orientation.z = poseoz
             states.pose.orientation.w = poseow
             self.spawn_publisher.publish(states)
-
+ 
 
 
 

@@ -265,7 +265,7 @@ max_episode_length = 300
 gamma = .99 # discount rate for advantage estimation and reward discounting
 s_size = 7056 # Observations are greyscale frames of 84 * 84 * 1
 a_size = 3 # Agent can move Left, Right, or Fire
-load_model = True
+load_model = False
 model_path = './model'
 
 
@@ -281,10 +281,12 @@ with tf.device("/cpu:0"):
     global_episodes = tf.Variable(0,dtype=tf.int32,name='global_episodes',trainable=False)
     trainer = tf.train.AdamOptimizer(learning_rate=1e-4)
     master_network = AC_Network(s_size,a_size,'global',None) # Generate global network
-    num_workers = multiprocessing.cpu_count() # Set workers to number of available CPU threads
+    # num_workers = multiprocessing.cpu_count() # Set workers to number of available CPU threads
+    name_workers = ["fusion","mkz"]
     workers = []
-    for i in range(num_workers):
-        workers.append(Worker(DoomGame(),i,s_size,a_size,trainer,model_path,global_episodes))
+    for i in range(len(name_workers)):
+        # workers.append(Worker(DoomGame(),i,s_size,a_size,trainer,model_path,global_episodes))
+        workers.append(Worker(name_workers[i],i,s_size,a_size,trainer,model_path,global_episodes))
     saver = tf.train.Saver(max_to_keep=5)
 
 with tf.Session() as sess:
@@ -301,7 +303,7 @@ with tf.Session() as sess:
         worker_work = lambda: worker.work(max_episode_length,gamma,sess,coord,saver)
         t = threading.Thread(target=(worker_work))
         t.start()
-        sleep(0.5)
+        sleep(0.1)
         worker_threads.append(t)
     coord.join(worker_threads)
 
