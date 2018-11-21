@@ -21,10 +21,10 @@ def update_target_graph(from_scope,to_scope):
         op_holder.append(to_var.assign(from_var))
     return op_holder
 
-def process_frame(frame):
-    s = frame[49:193, 8:152] # Remove borders and counters
-    s = np.mean(s, axis=2) # convert to grayscale
-    s[s != 0] = 1
+def process_frame(s):
+    # s = frame[49:193, 8:152] # Remove borders and counters
+    # s = np.mean(s, axis=2) # convert to grayscale
+    # s[s != 0] = 1
     s = scipy.misc.imresize(s,[84,84])
     s = np.reshape(s,[np.prod(s.shape)]) / 255.0
     return s
@@ -118,7 +118,7 @@ class Worker():
     def __init__(self,car_name,s_size,a_size,trainer,model_path,global_episodes):
         self.name = car_name
         game = Game(car_name,False)
-        reward = Reward(car_name,False)
+        self.reward = Reward(car_name,False)
         self.number = self.name        
         self.model_path = model_path
         self.trainer = trainer
@@ -181,97 +181,105 @@ class Worker():
                 episode_step_count = 0
                 d = False
                 
-    #             self.env.new_episode() # here we shall have our spawning.
-    #             s = self.env.get_state().screen_buffer #state at time t. Top view image inputs
-    #             # print s.shape
-    #             episode_frames.append(s)
-    #             s = process_frame(s)
-    #             rnn_state = self.local_AC.state_init
-    #             self.batch_rnn_state = rnn_state
-    #             while self.env.is_episode_finished() == False: #have to create a function which will check if the episode is finished.
-    #                 a_dist,v,rnn_state = sess.run([self.local_AC.policy,self.local_AC.value,self.local_AC.state_out], 
-    #                     feed_dict={self.local_AC.inputs:[s],
-    #                     self.local_AC.state_in[0]:rnn_state[0],
-    #                     self.local_AC.state_in[1]:rnn_state[1]})
-    #                 a = np.random.choice(a_dist[0],p=a_dist[0])
-    #                 a = np.argmax(a_dist == a)
-
-    #                 r = self.env.make_action(self.actions[a]) / 100.0 #should take action execute it and give back the reward.
-    #                 d = self.env.is_episode_finished()
-    #                 if d == False:
-    #                     s1 = self.env.get_state().screen_buffer #give the second image
-    #                     episode_frames.append(s1)
-    #                     s1 = process_frame(s1)
-    #                 else:
-    #                     s1 = s
-                        
-    #                 episode_buffer.append([s,a,r,s1,d,v[0,0]])
-    #                 episode_values.append(v[0,0])
-
-    #                 episode_reward += r
-    #                 s = s1                    
-    #                 total_steps += 1
-    #                 episode_step_count += 1
+                self.env.respawn(True) # here we shall have our spawning.
+                si= self.reward.returns([1,0,0,0,0,0,0,0,0,0])
+                # print si[1].shape
+                s=si[1]
+                # s = self.env.get_state().screen_buffer #state at time t. Top view image inputs
+                episode_frames.append(s)
+                s = process_frame(s)
+                # print s.shape
+                rnn_state = self.local_AC.state_init
+                self.batch_rnn_state = rnn_state
+                while self.env.is_episode_finished() == False: #have to create a function which will check if the episode is finished.
+                    a_dist,v,rnn_state = sess.run([self.local_AC.policy,self.local_AC.value,self.local_AC.state_out], 
+                        feed_dict={self.local_AC.inputs:[s],
+                        self.local_AC.state_in[0]:rnn_state[0],
+                        self.local_AC.state_in[1]:rnn_state[1]})
+                    a = np.random.choice(a_dist[0],p=a_dist[0])
+                    a = np.argmax(a_dist == a)
                     
-    #                 if len(episode_buffer) == 30 and d != True and episode_step_count != max_episode_length - 1:
-    #                     v1 = sess.run(self.local_AC.value, 
-    #                         feed_dict={self.local_AC.inputs:[s],
-    #                         self.local_AC.state_in[0]:rnn_state[0],
-    #                         self.local_AC.state_in[1]:rnn_state[1]})[0,0]
-    #                     v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer,sess,gamma,v1)
-    #                     episode_buffer = []
-    #                     sess.run(self.update_local_ops)
-    #                 if d == True:
-    #                     break
+
+                    # r = self.env.make_action(self.actions[a]) #should take action execute it and give back the reward.
+                    retn = self.reward.returns(self.actions[a])
+                    r= retn[2]
+                    d = self.env.is_episode_finished()
+                    if d == False:
+                        s1 = retn[1] #give the second image
+                        episode_frames.append(s1)
+                        s1 = process_frame(s1)
+                    else:
+                        s1 = s
+                        
+                    episode_buffer.append([s,a,r,s1,d,v[0,0]])
+                    episode_values.append(v[0,0])
+                    print self.name,"actions: ",a , "reward: ",r
+
+                    episode_reward += r
+                    s = s1                    
+                    total_steps += 1
+                    episode_step_count += 1
+                    print episode_step_count
+                    
+                    if len(episode_buffer) == 30 and d != True and episode_step_count != max_episode_length - 1:
+                        v1 = sess.run(self.local_AC.value, 
+                            feed_dict={self.local_AC.inputs:[s],
+                            self.local_AC.state_in[0]:rnn_state[0],
+                            self.local_AC.state_in[1]:rnn_state[1]})[0,0]
+                        v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer,sess,gamma,v1)
+                        episode_buffer = []
+                        sess.run(self.update_local_ops)
+                    if d == True:
+                        break
                                             
-    #             self.episode_rewards.append(episode_reward)
-    #             self.episode_lengths.append(episode_step_count)
-    #             self.episode_mean_values.append(np.mean(episode_values))
+                self.episode_rewards.append(episode_reward)
+                self.episode_lengths.append(episode_step_count)
+                self.episode_mean_values.append(np.mean(episode_values))
                 
-    #             # Update the network using the episode buffer at the end of the episode.
-    #             if len(episode_buffer) != 0:
-    #                 v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer,sess,gamma,0.0)
+                # Update the network using the episode buffer at the end of the episode.
+                if len(episode_buffer) != 0:
+                    v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer,sess,gamma,0.0)
                                 
                     
-    #             # Periodically save gifs of episodes, model parameters, and summary statistics.
-    #             if episode_count % 5 == 0 and episode_count != 0:
-    #                 if self.name == 'worker_0' and episode_count % 25 == 0:
-    #                     time_per_step = 0.05
-    #                     images = np.array(episode_frames)
-    #                     make_gif(images,'./frames/image'+str(episode_count)+'.gif',
-    #                         duration=len(images)*time_per_step,true_image=True,salience=False)
-    #                 if episode_count % 250 == 0 and self.name == 'worker_0':
-    #                     saver.save(sess,self.model_path+'/model-'+str(episode_count)+'.cptk')
-    #                     print ("Saved Model")
+                # Periodically save gifs of episodes, model parameters, and summary statistics.
+                if episode_count % 5 == 0 and episode_count != 0:
+                    if self.name == 'worker_0' and episode_count % 25 == 0:
+                        time_per_step = 0.05
+                        images = np.array(episode_frames)
+                        make_gif(images,'./frames/image'+str(episode_count)+'.gif',
+                            duration=len(images)*time_per_step,true_image=True,salience=False)
+                    if episode_count % 250 == 0 and self.name == 'worker_0':
+                        saver.save(sess,self.model_path+'/model-'+str(episode_count)+'.cptk')
+                        print ("Saved Model")
 
-    #                 mean_reward = np.mean(self.episode_rewards[-5:])
-    #                 mean_length = np.mean(self.episode_lengths[-5:])
-    #                 mean_value = np.mean(self.episode_mean_values[-5:])
-    #                 summary = tf.Summary()
-    #                 summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
-    #                 summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
-    #                 summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
-    #                 summary.value.add(tag='Losses/Value Loss', simple_value=float(v_l))
-    #                 summary.value.add(tag='Losses/Policy Loss', simple_value=float(p_l))
-    #                 summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
-    #                 summary.value.add(tag='Losses/Grad Norm', simple_value=float(g_n))
-    #                 summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
-    #                 self.summary_writer.add_summary(summary, episode_count)
+                    mean_reward = np.mean(self.episode_rewards[-5:])
+                    mean_length = np.mean(self.episode_lengths[-5:])
+                    mean_value = np.mean(self.episode_mean_values[-5:])
+                    summary = tf.Summary()
+                    summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
+                    summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
+                    summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
+                    summary.value.add(tag='Losses/Value Loss', simple_value=float(v_l))
+                    summary.value.add(tag='Losses/Policy Loss', simple_value=float(p_l))
+                    summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
+                    summary.value.add(tag='Losses/Grad Norm', simple_value=float(g_n))
+                    summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
+                    self.summary_writer.add_summary(summary, episode_count)
 
-    #                 self.summary_writer.flush()
-    #             if self.name == 'worker_0':
-    #                 sess.run(self.increment)
-    #             episode_count += 1
-    #             # print "rewards",self.episode_rewards,"length", self.episode_lengths,"mean", self.episode_mean_values
-
-
+                    self.summary_writer.flush()
+                if self.name == 'worker_0':
+                    sess.run(self.increment)
+                episode_count += 1
+                print "rewards",self.episode_rewards,"length", self.episode_lengths,"mean", self.episode_mean_values
 
 
 
-max_episode_length = 300
+
+
+max_episode_length = 1500
 gamma = .99 # discount rate for advantage estimation and reward discounting
 s_size = 7056 # Observations are greyscale frames of 84 * 84 * 1
-a_size = 3 # Agent can move Left, Right, or Fire
+a_size = 10 # Agent can move Left, Right, or Fire
 load_model = False
 model_path = './model'
 
@@ -290,6 +298,7 @@ with tf.device("/gpu:0"):
     trainer = tf.train.AdamOptimizer(learning_rate=1e-4)
     master_network = AC_Network(s_size,a_size,'global',None) # Generate global network
     name_workers = ["fusion","mkz"]
+    print name_workers
     workers = []
     for i in name_workers:
 

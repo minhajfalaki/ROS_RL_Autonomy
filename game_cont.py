@@ -35,63 +35,67 @@ class Play():
 
     def cmd_publisher(self,action):
 
-        if action==[1,0,0,0,0,0,0,0,0,0]:
-            throttle = 0
-            steer = 0
+       # if action==[1,0,0,0,0,0,0,0,0,0]:
+       #     throttle = 0
+       #     steer = 0
             # brake = 2
 
-        elif action==[0,1,0,0,0,0,0,0,0,0]:
-            throttle = 3
-            steer = -6
+       # elif action==[0,1,0,0,0,0,0,0,0,0]:
+       #     throttle = 3
+       #     steer = -6
             # brake = 0
 
-        elif action==[0,0,1,0,0,0,0,0,0,0]:
-            throttle = 4
-            steer = -3
+       # elif action==[0,0,1,0,0,0,0,0,0,0]:
+       #     throttle = 4
+       #     steer = -3
             # brake = 0
 
-        elif action==[0,0,0,1,0,0,0,0,0,0]:
-            throttle = 5
-            steer = -1.5
+       # elif action==[0,0,0,1,0,0,0,0,0,0]:
+       #     throttle = 5
+       #     steer = -1.5
             # brake = 0
 
-        elif action==[0,0,0,0,1,0,0,0,0,0]:
-            throttle = 6
-            steer = 0.0
+       # elif action==[0,0,0,0,1,0,0,0,0,0]:
+       #     throttle = 6
+
+       #     steer = 0.0
             # brake = 0
 
-        elif action==[0,0,0,0,0,1,0,0,0,0]:
-            throttle = 6
-            steer = 0.0
+        #elif action==[0,0,0,0,0,1,0,0,0,0]:
+        #    throttle = 6
+         #   steer = 0.0
             # brake = 0
 
-        elif action==[0,0,0,0,0,0,1,0,0,0]:
-            throttle = 5
-            steer = 1.5
+       # elif action==[0,0,0,0,0,0,1,0,0,0]:
+       #     throttle = 5
+       #     steer = 1.5
             # brake = 0
 
-        elif action==[0,0,0,0,0,0,0,1,0,0]:
-            throttle = 4
-            steer = 3
+       # elif action==[0,0,0,0,0,0,0,1,0,0]:
+       #     throttle = 4
+       #     steer = 3
             # brake = 0
 
-        elif action==[0,0,0,0,0,0,0,0,1,0]:
-            throttle = 3
-            steer = 6
+       # elif action==[0,0,0,0,0,0,0,0,1,0]:
+       #     throttle = 3
+       #     steer = 6
             # brake = 0
 
-        elif action==[0,0,0,0,0,0,0,0,0,1]:
-            throttle = 0
-            steer = 0.0
+        #elif action==[0,0,0,0,0,0,0,0,0,1]:
+       #     throttle = 0
+       #     steer = 0.0
             # brake = 2
-
-        if(steer<-8.2):
-            steer = -8.2
-        elif(steer>8.2):
-            steer = 8.2
-
-        self.steering_cmd_publisher(angle_rad=steer)
-        self.throttle_cmd_publisher(throttle_value=throttle)
+            steer = action[0]
+            if action[1]==0:
+                throttle=0
+            else:
+                throttle = 5.56
+            if(steer<-8.2):
+                steer = -8.2
+            elif(steer>8.2):
+                steer = 8.2
+            self.steering_cmd_publisher(angle_rad=steer)
+            self.throttle_cmd_publisher(throttle_value=throttle)
         # self.brake_cmd_publisher(brake_value=brake)
 
     def throttle_cmd_publisher(self, throttle_value=0.0):
