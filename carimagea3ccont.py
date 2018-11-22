@@ -40,7 +40,7 @@ class Brain:
 	lock_queue = threading.Lock()		
 
 	def __init__(self):
-		self.session = tf.Session()
+		self.session = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
 		K.set_session(self.session)			
 		K.manual_variable_initialization(True)		
 
@@ -112,8 +112,8 @@ class Brain:
 
 			s, a, r, s_, s_mask, prob, ent = self.train_queue		
 			self.train_queue = [ [], [], [], [], [], [], [] ]
-			ts = time.time
-			print("time : {}".format(ts))
+			#ts = time.time
+			#print("time : {}".format(ts))
 
 		s = np.vstack(s)					#process them into solid blocks of numpy arrays
 		a = np.vstack(a)
@@ -242,28 +242,28 @@ class Environment(threading.Thread):
 
 	def runEpisode(self):
 		global update							
-		self.env.respawn(True)	
 		s = self.reward.returns([0,0])
+		self.env.respawn(False)
 		R = 0							
 		r = 0
 		done = False						
 		time.sleep(THREAD_DELAY) 				
 		while not done:
-			print s[1]
-			s = np.reshape(s, [-1, 150, 200, 1])	
-			a, p, ent = self.agent.act(s)
-			retn = self.reward.returns([a,5.56])
-			r = retn[2]
+			s[1] = np.reshape(s[1], [-1, 150, 200, 1])	
+			a, p, ent = self.agent.act(s[1])
+			ns = self.reward.returns([a,5.56])
+			r = ns[2]
 			done = self.env.is_episode_finished()
+			print done,"is done"
 			if done == False:
-			  ns = retn[1]
-			  ns = np.reshape(ns, [-1, 150, 200, 1])	
+			  ns[1] = np.reshape(ns[1], [-1, 150, 200, 1])	
 			if done == True:
-			  ns = None				
+			  ns[1] = None				
 	
-			self.agent.train(s, a, r, ns, p, ent)
+			self.agent.train(s[1], a, r, ns[1], p, ent)
 			if done == False:
-			  s = ns
+			  s[1] = ns[1]
+			print("----running----")
 
 			R += r				
 
@@ -277,6 +277,7 @@ class Environment(threading.Thread):
       			brain.model.save('carimage-a3cdiscrete.h5')
 
 	def run(self):							# runs episodes in loop
+		self.env.respawn(True)	
 		while not self.stop_signal:
 			self.runEpisode()
 
@@ -308,10 +309,12 @@ with tf.device("/gpu:0"):
 	brain = Brain()	# brain is global in A3C				
 
 #envs = [Environment() for i in range(THREADS)]				#creates instances of Environment
-with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
+# with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
 	env1 = Environment("fusion")
 	env2 = Environment("mkz")
 	opts = [Optimizer() for i in range(OPTIMIZERS)]				#creates instances of Optimizer
+
+	print("...START...")
 
 	for o in opts:								#starts the threads
 		o.start()							

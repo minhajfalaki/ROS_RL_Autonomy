@@ -26,6 +26,7 @@ class SummingThread(threading.Thread):
 		returns = reward.returns([1,0,0,0,0,0,0,0,0,0])
 		if self.i>=100:
 			game.respawn(True)
+			print game.is_episode_finished(),"is the condition"
 			self.i=0
 
 		# print returns,i

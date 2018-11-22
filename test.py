@@ -137,6 +137,7 @@ class Worker():
         
     def train(self,rollout,sess,gamma,bootstrap_value):
         rollout = np.array(rollout)
+        # print rollout, "is rollout"
         observations = rollout[:,0]
         actions = rollout[:,1]
         rewards = rollout[:,2]
@@ -181,7 +182,7 @@ class Worker():
                 episode_step_count = 0
                 d = False
                 
-                self.env.respawn(True) # here we shall have our spawning.
+                # self.env.respawn(True) # here we shall have our spawning.
                 si= self.reward.returns([1,0,0,0,0,0,0,0,0,0])
                 # print si[1].shape
                 s=si[1]
@@ -204,6 +205,7 @@ class Worker():
                     retn = self.reward.returns(self.actions[a])
                     r= retn[2]
                     d = self.env.is_episode_finished()
+                    # print d
                     if d == False:
                         s1 = retn[1] #give the second image
                         episode_frames.append(s1)
@@ -213,13 +215,13 @@ class Worker():
                         
                     episode_buffer.append([s,a,r,s1,d,v[0,0]])
                     episode_values.append(v[0,0])
-                    print self.name,"actions: ",a , "reward: ",r
+                    # print self.name,"actions: ",a , "reward: ",r
 
                     episode_reward += r
                     s = s1                    
                     total_steps += 1
                     episode_step_count += 1
-                    print episode_step_count
+                    # print episode_step_count
                     
                     if len(episode_buffer) == 30 and d != True and episode_step_count != max_episode_length - 1:
                         v1 = sess.run(self.local_AC.value, 
@@ -239,6 +241,7 @@ class Worker():
                 # Update the network using the episode buffer at the end of the episode.
                 if len(episode_buffer) != 0:
                     v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer,sess,gamma,0.0)
+                # v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer,sess,gamma,0.0)
                                 
                     
                 # Periodically save gifs of episodes, model parameters, and summary statistics.
@@ -270,7 +273,7 @@ class Worker():
                 if self.name == 'worker_0':
                     sess.run(self.increment)
                 episode_count += 1
-                print "rewards",self.episode_rewards,"length", self.episode_lengths,"mean", self.episode_mean_values
+                # print "rewards",self.episode_rewards,"length", self.episode_lengths,"mean", self.episode_mean_values
 
 
 

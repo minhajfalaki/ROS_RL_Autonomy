@@ -129,10 +129,13 @@ class Reward:
         self.right_d = data.right_d
         self.angle = data.angle
         self.v_act = data.velocity.linear.x
+        print self.spawn, self.left_d,self.right_d,self.vehicle_name
         if self.left_d >= 12.5 or self.right_d >=12.5:
-            self.game.respawn(True)
+            self.spawn = True
         else:
-            self.game.respawn(self.spawn)
+            self.spawn = self.spawn
+
+        self.game.respawn(self.spawn)
 
     def image_callback(self,image):
         try:
@@ -197,6 +200,7 @@ class Reward:
         seq = self.seq
         reward = self.reward_func()
         returns = [seq ,state,reward]
+        print self.spawn, "is ep",self.vehicle_name
         return returns
 
 class Game:
@@ -206,6 +210,7 @@ class Game:
         rospy.init_node('Game', anonymous=True)
         self.r = rospy.Rate(30)
         self.spawn=spawn
+        self.spawning = False
         self.odom_data = [[0,0,0],[0,0,0,0]]
         self.twist_data = [[0,0,0],[0,0,0]]
         self.linear_velocity = [0,0,0]
@@ -255,7 +260,8 @@ class Game:
     def is_episode_finished(self):
 
         ep = False
-        if self.counter < 20000:
+        # print self.spawning,"is ep"
+        if self.spawning != True:
             ep = False
         else:
             ep = True
@@ -267,13 +273,12 @@ class Game:
 
 
     def respawn(self,spawning):
+        self.spawning = spawning
 
-
-
-        if self.spawn == True or spawning == True:
+        if self.spawn == True or self.spawning == True:
             self.counter=20000
             self.counter+=1
-            print self.counter
+            # print self.counter
 
         else:
         	self.counter = 0
@@ -293,6 +298,7 @@ class Game:
             zz = 0.3 
             yaw = -1  	
         states = ModelState()
+        # print self.spawning, "is the actual value"
 
         if self.counter==0:
 
@@ -360,9 +366,9 @@ class Game:
                 time.sleep(0.2)
                 
             if self.counter >= 20004:
-                print self.counter
+                # print self.counter
                 self.counter = 0
-                print self.counter
+                # print self.counter
 
             states.model_name = "%s"%(self.vehicle_name)
             states.twist.linear.x = twistx

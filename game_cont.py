@@ -259,7 +259,8 @@ class Game:
     def is_episode_finished(self):
 
         ep = False
-        if self.counter < 20000:
+        print self.spawning,"is ep"
+        if self.spawning != True:
             ep = False
         else:
             ep = True
@@ -271,16 +272,15 @@ class Game:
 
 
     def respawn(self,spawning):
+        self.spawning = spawning
 
-
-
-        if self.spawn == True or spawning == True:
+        if self.spawn == True or self.spawning == True:
             self.counter=20000
             self.counter+=1
-            print self.counter
+            # print self.counter
 
         else:
-        	self.counter = 0
+            self.counter = 0
 
 
         self.spawn_publisher = rospy.Publisher("/gazebo/set_model_state", ModelState, queue_size=1)
