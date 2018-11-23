@@ -22,9 +22,6 @@ def update_target_graph(from_scope,to_scope):
     return op_holder
 
 def process_frame(s):
-    # s = frame[49:193, 8:152] # Remove borders and counters
-    # s = np.mean(s, axis=2) # convert to grayscale
-    # s[s != 0] = 1
     s = scipy.misc.imresize(s,[84,84])
     s = np.reshape(s,[np.prod(s.shape)]) / 255.0
     return s
@@ -306,21 +303,21 @@ with tf.device("/gpu:0"):
     saver = tf.train.Saver(max_to_keep=5)
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
-    with tf.device("/gpu:0"):
-        coord = tf.train.Coordinator()
-        if load_model == True:
-            print ('Loading Model...')
-            ckpt = tf.train.get_checkpoint_state(model_path)
-            saver.restore(sess,ckpt.model_checkpoint_path)
-        else:
-            sess.run(tf.global_variables_initializer())
-            
-        worker_threads = []
-        for worker in workers:
-            worker_work = lambda: worker.work(max_episode_length,gamma,sess,coord,saver)
-            t = threading.Thread(target=(worker_work))
-            t.start()
-            sleep(0.1)
-            worker_threads.append(t)
-        coord.join(worker_threads)
+    # with tf.device("/gpu:0"):
+    coord = tf.train.Coordinator()
+    if load_model == True:
+        print ('Loading Model...')
+        ckpt = tf.train.get_checkpoint_state(model_path)
+        saver.restore(sess,ckpt.model_checkpoint_path)
+    else:
+        sess.run(tf.global_variables_initializer())
+        
+    worker_threads = []
+    for worker in workers:
+        worker_work = lambda: worker.work(max_episode_length,gamma,sess,coord,saver)
+        t = threading.Thread(target=(worker_work))
+        t.start()
+        sleep(0.1)
+        worker_threads.append(t)
+    coord.join(worker_threads)
 
