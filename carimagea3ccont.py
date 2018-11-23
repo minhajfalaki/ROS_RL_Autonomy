@@ -6,6 +6,7 @@ from random import randint
 from keras.models import *
 from keras.layers import *
 from keras import backend as K
+from keras.utils.generic_utils import get_custom_objects
 import cv2
 from game_cont import Game, Reward
 import os
@@ -14,14 +15,14 @@ import os
 resume = False			#for loading weights if the previously trained model has been saved
 updatefreq = 50                 #for saving the model
 update = 0                      #for saving the model
-RUN_TIME = 11000		#time between starting and stopping the thread in seconds
+RUN_TIME = 86400		#time between starting and stopping the thread in seconds
 THREADS = 2			#number of environment threads
 OPTIMIZERS = 1			#number of optimizer threads
 THREAD_DELAY = 0.001		#for yielding between threads
 
 GAMMA = 0.95			#discount factor for future rewards
 
-N_STEP_RETURN = 1		#defines how many steps to look ahead for calculating rewards
+N_STEP_RETURN = 8		#defines how many steps to look ahead for calculating rewards
 GAMMA_N = GAMMA ** N_STEP_RETURN	#calculate future discounted reward factor(gamma_n) for a n step return
 
 EPS_START = 1		#start epsilon value (Exploration Rate)
@@ -29,10 +30,16 @@ EPS_STOP  = .001			#end epsilon value
 EPS_STEPS = 1000000		#steps to decay epsilon from start value to end value
 
 MIN_BATCH = 64			#min batch required for training
-LEARNING_RATE = 1e-2		#learning rate
+LEARNING_RATE = 1e-1		#learning rate
 
 LOSS_V = .5			# v loss coefficient
 LOSS_ENTROPY = .01 		# entropy coefficient
+
+
+
+def custom_activation(x):
+	return (K.sigmoid(x) * 8.2)
+get_custom_objects().update({'custom_activation': Activation(custom_activation)})
 
 #---------
 class Brain:
@@ -65,7 +72,7 @@ class Brain:
 
 
 		mu = Dense(1,  activation='tanh')(l_dense_)
-		sigma = Dense(1,  activation='softplus')(l_dense_)
+		sigma = Dense(1,  activation = custom_activation)(l_dense_)
 		#out_actions = Dense(NUM_ACTIONS, activation='softmax')(l_dense_)		#actor output - outputs the actions
 		out_value   = Dense(1, activation='linear')(l_dense_)		#critic output - outputs the value
 
@@ -186,7 +193,9 @@ class Agent:
 	def act(self, s):
 		sess = tf.Session()
 		s = np.array([s])
-		mu, sigma = brain.predict_p(s)	
+		mu, sigma = brain.predict_p(s)
+		print(mu, "mu")
+		print(sigma, "sigma")
 		normal_dist = tf.contrib.distributions.Normal(mu, sigma)
 		ac = normal_dist.sample(1)
 		ac = tf.reshape(ac, shape=[1])
@@ -251,9 +260,11 @@ class Environment(threading.Thread):
 		while not done:
 			s[1] = np.reshape(s[1], [-1, 150, 200, 1])	
 			a, p, ent = self.agent.act(s[1])
+			print("action : {}".format(a))
 			ns = self.reward.returns([a,5.56])
 			r = ns[2]
-			done = self.env.is_episode_finished()
+			done = ns[3]
+			#done = self.env.is_episode_finished()
 			print done,"is done"
 			if done == False:
 			  ns[1] = np.reshape(ns[1], [-1, 150, 200, 1])	
@@ -301,7 +312,7 @@ class Optimizer(threading.Thread):
 #-- main
 
 with tf.device("/gpu:0"): 
-	env_test = Environment("fusion" , eps_start=0., eps_end=0.)		#env. for testing (after training)	
+	#env_test = Environment("fusion" , eps_start=0., eps_end=0.)		#env. for testing (after training)	
 
 	NUM_ACTIONS = 1
 	NONE_STATE = np.zeros((150,200,1))					
@@ -336,4 +347,4 @@ with tf.device("/gpu:0"):
 		o.join()
 
 	print("Training finished")
-	env_test.run()		                                                #after training run
+	#env_test.run()		                                                #after training run

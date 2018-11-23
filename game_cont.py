@@ -89,11 +89,12 @@ class Play():
             if action[1]==0:
                 throttle=0
             else:
-                throttle = 5.56
+                throttle = 1.5
             if(steer<-8.2):
                 steer = -8.2
             elif(steer>8.2):
                 steer = 8.2
+            print steer
             self.steering_cmd_publisher(angle_rad=steer)
             self.throttle_cmd_publisher(throttle_value=throttle)
         # self.brake_cmd_publisher(brake_value=brake)
@@ -133,10 +134,13 @@ class Reward:
         self.right_d = data.right_d
         self.angle = data.angle
         self.v_act = data.velocity.linear.x
+        # print self.spawn, self.left_d,self.right_d,self.vehicle_name
         if self.left_d >= 12.5 or self.right_d >=12.5:
-            self.game.respawn(True)
+            self.spawn = True
         else:
-            self.game.respawn(self.spawn)
+            self.spawn = self.spawn
+
+        self.spawn = self.game.respawn(self.spawn)
 
     def image_callback(self,image):
         try:
@@ -200,7 +204,8 @@ class Reward:
         state = self.state_input
         seq = self.seq
         reward = self.reward_func()
-        returns = [seq ,state,reward]
+        returns = [seq ,state,reward,self.spawn]
+        # print self.spawn, "is ep",self.vehicle_name
         return returns
 
 class Game:
@@ -210,6 +215,7 @@ class Game:
         rospy.init_node('Game', anonymous=True)
         self.r = rospy.Rate(30)
         self.spawn=spawn
+        self.spawning = False
         self.odom_data = [[0,0,0],[0,0,0,0]]
         self.twist_data = [[0,0,0],[0,0,0]]
         self.linear_velocity = [0,0,0]
@@ -218,11 +224,11 @@ class Game:
         self.odom = rospy.Subscriber("/gazebo/model_states", ModelStates, self.odom_callback)
         self.cmd_vel = rospy.Subscriber("/%s/twist"%(vehicle_name), TwistStamped, self.vel_callback )
         if vehicle_name == 'fusion':
-        	v2 = "mkz"
-        	self.nn=27
+            v2 = "mkz"
+            self.nn=27
         else:
-        	v2 = "fusion"
-        	self.nn=28
+            v2 = "fusion"
+            self.nn=28
 
 
     def vel_callback(self,data):
@@ -259,7 +265,7 @@ class Game:
     def is_episode_finished(self):
 
         ep = False
-        print self.spawning,"is ep"
+        # print self.spawning,"is ep"
         if self.spawning != True:
             ep = False
         else:
@@ -295,8 +301,9 @@ class Game:
             xx = -87.7943398547
             yy = 394.797117511
             zz = 0.3 
-            yaw = -1  	
+            yaw = -1    
         states = ModelState()
+        # print self.spawning, "is the actual value"
 
         if self.counter==0:
 
@@ -317,7 +324,7 @@ class Game:
             twistay = self.angular_velocity[1]
             twistaz = self.angular_velocity[2]
 
-            return
+            return False
 
         while self.counter>20000:
 
@@ -364,9 +371,10 @@ class Game:
                 time.sleep(0.2)
                 
             if self.counter >= 20004:
-                print self.counter
+                # print self.counter
                 self.counter = 0
-                print self.counter
+
+                # print self.counter
 
             states.model_name = "%s"%(self.vehicle_name)
             states.twist.linear.x = twistx
@@ -386,6 +394,8 @@ class Game:
             states.pose.orientation.z = poseoz
             states.pose.orientation.w = poseow
             self.spawn_publisher.publish(states)
+
+        return False
  
 
 

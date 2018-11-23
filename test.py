@@ -204,7 +204,9 @@ class Worker():
                     # r = self.env.make_action(self.actions[a]) #should take action execute it and give back the reward.
                     retn = self.reward.returns(self.actions[a])
                     r= retn[2]
-                    d = self.env.is_episode_finished()
+                    print retn
+                    # d = self.env.is_episode_finished()
+                    d = retn[3]
                     # print d
                     if d == False:
                         s1 = retn[1] #give the second image

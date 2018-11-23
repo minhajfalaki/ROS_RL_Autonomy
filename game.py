@@ -135,7 +135,7 @@ class Reward:
         else:
             self.spawn = self.spawn
 
-        self.game.respawn(self.spawn)
+        self.spawn = self.game.respawn(self.spawn)
 
     def image_callback(self,image):
         try:
@@ -199,8 +199,8 @@ class Reward:
         state = self.state_input
         seq = self.seq
         reward = self.reward_func()
-        returns = [seq ,state,reward]
-        print self.spawn, "is ep",self.vehicle_name
+        returns = [seq ,state,reward,self.spawn]
+        # print self.spawn, "is ep",self.vehicle_name
         return returns
 
 class Game:
@@ -319,7 +319,7 @@ class Game:
             twistay = self.angular_velocity[1]
             twistaz = self.angular_velocity[2]
 
-            return
+            return False
 
         while self.counter>20000:
 
@@ -368,6 +368,7 @@ class Game:
             if self.counter >= 20004:
                 # print self.counter
                 self.counter = 0
+
                 # print self.counter
 
             states.model_name = "%s"%(self.vehicle_name)
@@ -388,6 +389,12 @@ class Game:
             states.pose.orientation.z = poseoz
             states.pose.orientation.w = poseow
             self.spawn_publisher.publish(states)
+
+        return False
+
+
+
+
  
 
 
